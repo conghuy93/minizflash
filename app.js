@@ -232,10 +232,30 @@ class ESPWebFlasher {
             
             // Read MAC address for license binding
             try {
-                this.deviceMAC = await this.esploader.readMac();
-                this.log(`📟 Device MAC: ${this.deviceMAC}`, 'info');
+                const macRaw = await this.esploader.readMac();
+                // Handle both string and buffer/array formats
+                if (typeof macRaw === 'string') {
+                    this.deviceMAC = macRaw.toUpperCase();
+                } else if (Array.isArray(macRaw) || macRaw instanceof Uint8Array) {
+                    // Convert byte array to MAC address string
+                    this.deviceMAC = Array.from(macRaw)
+                        .map(byte => byte.toString(16).padStart(2, '0').toUpperCase())
+                        .join(':');
+                } else if (macRaw && typeof macRaw === 'object' && macRaw.mac_list) {
+                    // Handle object format from newer esptool-js
+                    const macBytes = macRaw.mac_list;
+                    this.deviceMAC = Array.from(macBytes)
+                        .map(byte => byte.toString(16).padStart(2, '0').toUpperCase())
+                        .join(':');
+                } else {
+                    // Fallback - try to convert toString
+                    this.deviceMAC = String(macRaw).toUpperCase();
+                }
+                this.log(`📟 Device MAC: ${this.deviceMAC}`, 'success');
             } catch (e) {
-                this.log('⚠️ Could not read MAC address', 'warning');
+                this.log(`⚠️ Could not read MAC address: ${e.message}`, 'warning');
+                console.warn('MAC read error details:', e);
+                // Still allow operation without MAC - just can't use firmware 1
             }
             
             // Update UI
