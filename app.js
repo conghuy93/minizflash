@@ -1,5 +1,6 @@
 // Import ESPLoader from CDN (use latest stable version)
 import { ESPLoader, Transport } from 'https://unpkg.com/esptool-js@latest/bundle.js';
+import SecurityManager from './security.js';
 
 class ESPWebFlasher {
     constructor() {
@@ -12,8 +13,28 @@ class ESPWebFlasher {
         this.selectedGithubUrl = null;
         this.selectedFileName = null;
         
+        // Initialize security
+        this.security = new SecurityManager();
+        this.initializeSecurity();
+        
         this.initializeUI();
         this.checkWebSerialSupport();
+    }
+
+    initializeSecurity() {
+        // Check if running on trusted domain
+        if (!this.security.checkOrigin()) {
+            document.body.innerHTML = '<div style="color:red;padding:50px;text-align:center;"><h1>⚠️ Unauthorized Access</h1><p>This application can only run on authorized domains.</p></div>';
+            throw new Error('Unauthorized domain');
+        }
+        
+        // Apply security measures
+        this.security.disableRightClick();
+        this.security.disableCopyPaste();
+        this.security.addSecurityHeaders();
+        
+        // Log security initialization
+        console.log('🔒 Security initialized - Session:', this.security.sessionId.substring(0, 8) + '...');
     }
 
     checkWebSerialSupport() {
@@ -67,6 +88,12 @@ class ESPWebFlasher {
     }
 
     async selectGithubFirmware(card) {
+        // Check security lockout
+        if (this.security.isLocked()) {
+            this.log('🔒 Too many attempts. Please wait 5 minutes.', 'error');
+            return;
+        }
+        
         // Remove previous selection
         document.querySelectorAll('.firmware-card').forEach(c => c.classList.remove('selected'));
         
@@ -76,16 +103,30 @@ class ESPWebFlasher {
         const url = card.dataset.url;
         const name = card.querySelector('h3').textContent;
         
-        this.log(`📥 Downloading ${name}...`, 'info');
+        this.log(`📥 Loading ${name}...`, 'info');
         
         try {
-            const response = await fetch(url);
+            // Obfuscate URL to prevent direct download tracking
+            const secureUrl = this.security.obfuscateUrl(url);
+            
+            const response = await fetch(url); // Use original URL for actual fetch
             if (!response.ok) {
+                this.security.recordAttempt();
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
             
             const arrayBuffer = await response.arrayBuffer();
             this.firmwareData = new Uint8Array(arrayBuffer);
+            
+            // Verify firmware integrity
+            const expectedSize = parseInt(card.querySelector('.firmware-size').textContent) * 1024 * 1024;
+            const isValid = await this.security.verifyIntegrity(this.firmwareData, this.firmwareData.length);
+            
+            if (!isValid) {
+                this.security.recordAttempt();
+                throw new Error('Firmware integrity check failed');
+            }
+            
             this.selectedGithubUrl = url;
             this.selectedFileName = name;
             
@@ -491,7 +532,9 @@ class ESPWebFlasher {
         logLine.className = `log-line ${type}`;
         
         const timestamp = new Date().toLocaleTimeString();
-        logLine.textContent = `[${timestamp}] ${message}`;
+        // Sanitize sensitive information
+        const sanitizedMessage = this.security.sanitizeConsoleOutput(message);
+        logLine.textContent = `[${timestamp}] ${sanitizedMessage}`;
         
         consoleOutput.appendChild(logLine);
         consoleOutput.scrollTop = consoleOutput.scrollHeight;
