@@ -232,63 +232,55 @@ class ESPWebFlasher {
             
             // Read MAC address for license binding
             try {
-                // Try multiple ways to get MAC address
-                let macRaw = null;
+                // Try different methods to get MAC address
+                let mac = null;
                 
-                // Method 1: Try readMac() if available
-                if (typeof this.esploader.readMac === 'function') {
-                    macRaw = await this.esploader.readMac();
-                } 
-                // Method 2: Try getMAC() 
-                else if (typeof this.esploader.getMAC === 'function') {
-                    macRaw = await this.esploader.getMAC();
-                }
-                // Method 3: Try get_mac() (snake_case)
-                else if (typeof this.esploader.get_mac === 'function') {
-                    macRaw = await this.esploader.get_mac();
-                }
-                // Method 4: Try to read from EFuse (address varies by chip)
-                else {
-                    this.log('📟 MAC address APIs not available in esptool-js version', 'warning');
-                    // Generate a deterministic MAC from chip if available
-                    this.deviceMAC = `ESP-${this.chip}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-                    this.log(`📟 Using generated device ID: ${this.deviceMAC}`, 'info');
-                }
-                
-                if (macRaw) {
-                    // Handle different MAC formats
-                    if (typeof macRaw === 'string') {
-                        this.deviceMAC = macRaw.toUpperCase();
-                    } else if (Array.isArray(macRaw) || macRaw instanceof Uint8Array) {
-                        // Convert byte array to MAC address string
-                        this.deviceMAC = Array.from(macRaw)
-                            .map(byte => byte.toString(16).padStart(2, '0').toUpperCase())
-                            .join(':');
-                    } else if (typeof macRaw === 'object') {
-                        // Try common property names
-                        if (macRaw.mac_list) {
-                            const macBytes = macRaw.mac_list;
-                            this.deviceMAC = Array.from(macBytes)
-                                .map(byte => byte.toString(16).padStart(2, '0').toUpperCase())
-                                .join(':');
-                        } else if (macRaw.mac) {
-                            this.deviceMAC = String(macRaw.mac).toUpperCase();
-                        } else {
-                            this.deviceMAC = JSON.stringify(macRaw);
-                        }
-                    } else {
-                        // Fallback
-                        this.deviceMAC = String(macRaw).toUpperCase();
+                // Method 1: Try readMac if available
+                if (this.esploader.readMac) {
+                    try {
+                        mac = await this.esploader.readMac();
+                    } catch (e) {
+                        this.log('⚠️ readMac method failed, trying alternative...', 'info');
                     }
                 }
                 
-                this.log(`📟 Device ID: ${this.deviceMAC}`, 'success');
+                // Method 2: Read from eFuse (0x39, 6 bytes for MAC)
+                if (!mac) {
+                    try {
+                        const macBytes = await this.esploader.readReg(0x3f41a048, 2); // ESP32-S3 MAC address eFuse location
+                        if (macBytes) {
+                            mac = this.bytesToMAC(macBytes);
+                        }
+                    } catch (e) {
+                        this.log('⚠️ eFuse read failed', 'info');
+                    }
+                }
+                
+                // Method 3: Try OTP/eFuse block read
+                if (!mac) {
+                    try {
+                        // Generate a mock MAC for testing if real MAC not available
+                        const chipId = await this.esploader.readReg(0x60000050);
+                        const chipId2 = await this.esploader.readReg(0x60000054);
+                        if (chipId && chipId2) {
+                            mac = this.generateMACFromChipId(chipId, chipId2);
+                        }
+                    } catch (e) {
+                        this.log('⚠️ Could not read chip ID', 'info');
+                    }
+                }
+                
+                if (mac) {
+                    this.deviceMAC = mac;
+                    this.log(`📟 Device MAC: ${this.deviceMAC}`, 'success');
+                } else {
+                    // Generate a deterministic MAC for this session if all else fails
+                    this.deviceMAC = this.generateSessionMAC();
+                    this.log(`📟 Device MAC (session): ${this.deviceMAC} - License will be bound to this session`, 'warning');
+                }
             } catch (e) {
-                this.log(`⚠️ Could not read device ID: ${e.message}`, 'warning');
-                console.warn('Device ID error:', e);
-                // Generate fallback ID
-                this.deviceMAC = `ESP-${this.chip}-${Date.now().toString(36).toUpperCase()}`;
-                this.log(`📟 Using fallback ID: ${this.deviceMAC}`, 'info');
+                this.log('⚠️ MAC address detection failed, using session MAC', 'warning');
+                this.deviceMAC = this.generateSessionMAC();
             }
             
             // Update UI
@@ -430,7 +422,6 @@ class ESPWebFlasher {
             licenseInput.value = '';
             this.licenseKey = null;
             this.licenseValidated = false;
-            this.updateFlashButtonState();
             return;
         }
         
@@ -442,9 +433,8 @@ class ESPWebFlasher {
             this.showLicenseStatus(`🟢 Key activated! Bound to ${this.deviceMAC}`, 'success');
             this.log(`✅ License key activated and bound to this device (${this.deviceMAC})`, 'success');
         } else {
-            const useCount = validation.useCount || 1;
-            this.showLicenseStatus(`🟢 Key valid! Usage: ${useCount}x on ${this.deviceMAC}`, 'success');
-            this.log(`✅ License key validated for ${this.deviceMAC} (${useCount} uses)`, 'success');
+            this.showLicenseStatus(`🟢 Key valid! Usage: ${validation.useCount || 1}x`, 'success');
+            this.log(`✅ License key validated for ${this.deviceMAC}`, 'success');
         }
         
         this.updateFlashButtonState();
@@ -700,6 +690,55 @@ class ESPWebFlasher {
         } finally {
             flashBtn.disabled = false;
         }
+    }
+
+    // Convert bytes to MAC address string
+    bytesToMAC(data) {
+        if (!data) return null;
+        try {
+            const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+            if (bytes.length < 6) return null;
+            return Array.from(bytes.slice(0, 6))
+                .map(b => b.toString(16).padStart(2, '0').toUpperCase())
+                .join(':');
+        } catch (e) {
+            return null;
+        }
+    }
+
+    // Generate MAC from chip ID (deterministic)
+    generateMACFromChipId(chipId1, chipId2) {
+        try {
+            // Use chip ID to generate a consistent MAC address
+            const bytes = [
+                (chipId1 >> 24) & 0xFF,
+                (chipId1 >> 16) & 0xFF,
+                (chipId1 >> 8) & 0xFF,
+                chipId2 & 0xFF,
+                (chipId2 >> 8) & 0xFF,
+                (chipId2 >> 16) & 0xFF
+            ];
+            return bytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(':');
+        } catch (e) {
+            return null;
+        }
+    }
+
+    // Generate session MAC (for fallback when real MAC unavailable)
+    generateSessionMAC() {
+        // Generate consistent MAC based on session + random component
+        const sessionKey = localStorage.getItem('esp_session_key');
+        const baseMAC = sessionKey || Math.random().toString(36).substr(2, 12);
+        
+        const bytes = [];
+        for (let i = 0; i < 6; i++) {
+            bytes.push(parseInt(baseMAC.substr(i * 2, 2), 16) || Math.floor(Math.random() * 256));
+        }
+        
+        // Set locally administered bit
+        bytes[0] |= 0x02;
+        
+        return bytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(':');
     }
 
     updateProgress(percent, written, total) {
