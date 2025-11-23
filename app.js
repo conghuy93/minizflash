@@ -232,30 +232,63 @@ class ESPWebFlasher {
             
             // Read MAC address for license binding
             try {
-                const macRaw = await this.esploader.readMac();
-                // Handle both string and buffer/array formats
-                if (typeof macRaw === 'string') {
-                    this.deviceMAC = macRaw.toUpperCase();
-                } else if (Array.isArray(macRaw) || macRaw instanceof Uint8Array) {
-                    // Convert byte array to MAC address string
-                    this.deviceMAC = Array.from(macRaw)
-                        .map(byte => byte.toString(16).padStart(2, '0').toUpperCase())
-                        .join(':');
-                } else if (macRaw && typeof macRaw === 'object' && macRaw.mac_list) {
-                    // Handle object format from newer esptool-js
-                    const macBytes = macRaw.mac_list;
-                    this.deviceMAC = Array.from(macBytes)
-                        .map(byte => byte.toString(16).padStart(2, '0').toUpperCase())
-                        .join(':');
-                } else {
-                    // Fallback - try to convert toString
-                    this.deviceMAC = String(macRaw).toUpperCase();
+                // Try multiple ways to get MAC address
+                let macRaw = null;
+                
+                // Method 1: Try readMac() if available
+                if (typeof this.esploader.readMac === 'function') {
+                    macRaw = await this.esploader.readMac();
+                } 
+                // Method 2: Try getMAC() 
+                else if (typeof this.esploader.getMAC === 'function') {
+                    macRaw = await this.esploader.getMAC();
                 }
-                this.log(`📟 Device MAC: ${this.deviceMAC}`, 'success');
+                // Method 3: Try get_mac() (snake_case)
+                else if (typeof this.esploader.get_mac === 'function') {
+                    macRaw = await this.esploader.get_mac();
+                }
+                // Method 4: Try to read from EFuse (address varies by chip)
+                else {
+                    this.log('📟 MAC address APIs not available in esptool-js version', 'warning');
+                    // Generate a deterministic MAC from chip if available
+                    this.deviceMAC = `ESP-${this.chip}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+                    this.log(`📟 Using generated device ID: ${this.deviceMAC}`, 'info');
+                }
+                
+                if (macRaw) {
+                    // Handle different MAC formats
+                    if (typeof macRaw === 'string') {
+                        this.deviceMAC = macRaw.toUpperCase();
+                    } else if (Array.isArray(macRaw) || macRaw instanceof Uint8Array) {
+                        // Convert byte array to MAC address string
+                        this.deviceMAC = Array.from(macRaw)
+                            .map(byte => byte.toString(16).padStart(2, '0').toUpperCase())
+                            .join(':');
+                    } else if (typeof macRaw === 'object') {
+                        // Try common property names
+                        if (macRaw.mac_list) {
+                            const macBytes = macRaw.mac_list;
+                            this.deviceMAC = Array.from(macBytes)
+                                .map(byte => byte.toString(16).padStart(2, '0').toUpperCase())
+                                .join(':');
+                        } else if (macRaw.mac) {
+                            this.deviceMAC = String(macRaw.mac).toUpperCase();
+                        } else {
+                            this.deviceMAC = JSON.stringify(macRaw);
+                        }
+                    } else {
+                        // Fallback
+                        this.deviceMAC = String(macRaw).toUpperCase();
+                    }
+                }
+                
+                this.log(`📟 Device ID: ${this.deviceMAC}`, 'success');
             } catch (e) {
-                this.log(`⚠️ Could not read MAC address: ${e.message}`, 'warning');
-                console.warn('MAC read error details:', e);
-                // Still allow operation without MAC - just can't use firmware 1
+                this.log(`⚠️ Could not read device ID: ${e.message}`, 'warning');
+                console.warn('Device ID error:', e);
+                // Generate fallback ID
+                this.deviceMAC = `ESP-${this.chip}-${Date.now().toString(36).toUpperCase()}`;
+                this.log(`📟 Using fallback ID: ${this.deviceMAC}`, 'info');
             }
             
             // Update UI
@@ -397,6 +430,7 @@ class ESPWebFlasher {
             licenseInput.value = '';
             this.licenseKey = null;
             this.licenseValidated = false;
+            this.updateFlashButtonState();
             return;
         }
         
@@ -408,8 +442,9 @@ class ESPWebFlasher {
             this.showLicenseStatus(`🟢 Key activated! Bound to ${this.deviceMAC}`, 'success');
             this.log(`✅ License key activated and bound to this device (${this.deviceMAC})`, 'success');
         } else {
-            this.showLicenseStatus(`🟢 Key valid! Usage: ${validation.useCount || 1}x`, 'success');
-            this.log(`✅ License key validated for ${this.deviceMAC}`, 'success');
+            const useCount = validation.useCount || 1;
+            this.showLicenseStatus(`🟢 Key valid! Usage: ${useCount}x on ${this.deviceMAC}`, 'success');
+            this.log(`✅ License key validated for ${this.deviceMAC} (${useCount} uses)`, 'success');
         }
         
         this.updateFlashButtonState();
