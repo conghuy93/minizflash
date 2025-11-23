@@ -37,13 +37,58 @@
 
         <div class="card">
             <h2>📦 Step 2: Select Firmware</h2>
-            <div class="file-select-section">
-                <input type="file" id="firmwareFile" accept=".bin" class="file-input">
-                <label for="firmwareFile" class="file-label">
-                    <span class="btn-icon">📁</span>
-                    Choose Firmware File (.bin)
-                </label>
-                <div id="fileInfo" class="file-info hidden"></div>
+            
+            <div class="firmware-mode-tabs">
+                <button class="tab-btn active" data-tab="github">📚 GitHub Firmwares</button>
+                <button class="tab-btn" data-tab="local">📁 Local File</button>
+            </div>
+            
+            <div id="githubFirmwareTab" class="firmware-tab active">
+                <p class="tab-description">Choose from pre-loaded firmware files:</p>
+                <div class="firmware-grid">
+                    <div class="firmware-card" data-url="https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware1.bin">
+                        <div class="firmware-icon">🎯</div>
+                        <h3>Firmware 1</h3>
+                        <p>Basic ESP32 firmware</p>
+                        <span class="firmware-size">~2MB</span>
+                    </div>
+                    <div class="firmware-card" data-url="https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware2.bin">
+                        <div class="firmware-icon">⚡</div>
+                        <h3>Firmware 2</h3>
+                        <p>WiFi enabled</p>
+                        <span class="firmware-size">~3MB</span>
+                    </div>
+                    <div class="firmware-card" data-url="https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware3.bin">
+                        <div class="firmware-icon">🌐</div>
+                        <h3>Firmware 3</h3>
+                        <p>IoT ready</p>
+                        <span class="firmware-size">~4MB</span>
+                    </div>
+                    <div class="firmware-card" data-url="https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware4.bin">
+                        <div class="firmware-icon">🔧</div>
+                        <h3>Firmware 4</h3>
+                        <p>Development build</p>
+                        <span class="firmware-size">~5MB</span>
+                    </div>
+                    <div class="firmware-card" data-url="https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware5.bin">
+                        <div class="firmware-icon">�</div>
+                        <h3>Firmware 5</h3>
+                        <p>Production ready</p>
+                        <span class="firmware-size">~6MB</span>
+                    </div>
+                </div>
+                <div id="githubFileInfo" class="file-info hidden"></div>
+            </div>
+            
+            <div id="localFileTab" class="firmware-tab">
+                <div class="file-select-section">
+                    <input type="file" id="firmwareFile" accept=".bin" class="file-input">
+                    <label for="firmwareFile" class="file-label">
+                        <span class="btn-icon">📁</span>
+                        Choose Firmware File (.bin)
+                    </label>
+                    <div id="fileInfo" class="file-info hidden"></div>
+                </div>
             </div>
         </div>
 

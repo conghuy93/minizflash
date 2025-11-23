@@ -8,6 +8,9 @@ class ESPWebFlasher {
         this.chip = null;
         this.esploader = null;
         this.firmwareData = null;
+        this.firmwareSource = 'github'; // 'github' or 'local'
+        this.selectedGithubUrl = null;
+        this.selectedFileName = null;
         
         this.initializeUI();
         this.checkWebSerialSupport();
@@ -24,11 +27,83 @@ class ESPWebFlasher {
         // Connect button
         document.getElementById('connectBtn').addEventListener('click', () => this.connectDevice());
         
-        // File input
+        // Tab switching
+        const tabBtns = document.querySelectorAll('.tab-btn');
+        tabBtns.forEach(btn => {
+            btn.addEventListener('click', () => this.switchTab(btn.dataset.tab));
+        });
+        
+        // GitHub firmware cards
+        const firmwareCards = document.querySelectorAll('.firmware-card');
+        firmwareCards.forEach(card => {
+            card.addEventListener('click', () => this.selectGithubFirmware(card));
+        });
+        
+        // Local file input
         document.getElementById('firmwareFile').addEventListener('change', (e) => this.handleFileSelect(e));
         
         // Flash button
         document.getElementById('flashBtn').addEventListener('click', () => this.flashFirmware());
+    }
+
+    switchTab(tabName) {
+        // Update tab buttons
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.tab === tabName);
+        });
+        
+        // Update tab content
+        document.querySelectorAll('.firmware-tab').forEach(tab => {
+            tab.classList.remove('active');
+        });
+        
+        if (tabName === 'github') {
+            document.getElementById('githubFirmwareTab').classList.add('active');
+            this.firmwareSource = 'github';
+        } else {
+            document.getElementById('localFileTab').classList.add('active');
+            this.firmwareSource = 'local';
+        }
+    }
+
+    async selectGithubFirmware(card) {
+        // Remove previous selection
+        document.querySelectorAll('.firmware-card').forEach(c => c.classList.remove('selected'));
+        
+        // Mark as selected
+        card.classList.add('selected');
+        
+        const url = card.dataset.url;
+        const name = card.querySelector('h3').textContent;
+        
+        this.log(`📥 Downloading ${name}...`, 'info');
+        
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const arrayBuffer = await response.arrayBuffer();
+            this.firmwareData = new Uint8Array(arrayBuffer);
+            this.selectedGithubUrl = url;
+            this.selectedFileName = name;
+            
+            // Display file info
+            const fileInfo = document.getElementById('githubFileInfo');
+            fileInfo.innerHTML = `
+                <strong>✅ ${name}</strong><br>
+                📦 Size: ${(this.firmwareData.length / 1024 / 1024).toFixed(2)} MB<br>
+                🔗 Source: GitHub
+            `;
+            fileInfo.classList.remove('hidden');
+            
+            this.log(`✅ ${name} loaded successfully (${(this.firmwareData.length / 1024 / 1024).toFixed(2)} MB)`, 'success');
+            
+        } catch (error) {
+            this.log(`❌ Failed to download firmware: ${error.message}`, 'error');
+            card.classList.remove('selected');
+        }
     }
 
     async connectDevice() {
@@ -195,6 +270,7 @@ class ESPWebFlasher {
         const reader = new FileReader();
         reader.onload = (e) => {
             this.firmwareData = new Uint8Array(e.target.result);
+            this.selectedFileName = file.name;
             
             const fileInfo = document.getElementById('fileInfo');
             fileInfo.innerHTML = `
@@ -242,7 +318,7 @@ class ESPWebFlasher {
             const eraseFlash = document.getElementById('eraseFlash').checked;
             
             this.log('=' .repeat(50), 'info');
-            this.log('⚡ Starting flash operation...', 'info');
+            this.log(`⚡ Starting flash operation for ${this.selectedFileName || 'firmware.bin'}...`, 'info');
             
             // Erase if needed
             if (eraseFlash) {
