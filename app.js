@@ -1,6 +1,7 @@
 // Import ESPLoader from CDN (use latest stable version)
 import { ESPLoader, Transport } from 'https://unpkg.com/esptool-js@latest/bundle.js';
 import SecurityManager from './security.js';
+import LicenseManager from './license.js';
 
 class ESPWebFlasher {
     constructor() {
@@ -12,9 +13,12 @@ class ESPWebFlasher {
         this.firmwareSource = 'github'; // 'github' or 'local'
         this.selectedGithubUrl = null;
         this.selectedFileName = null;
+        this.deviceMAC = null;
+        this.licenseKey = null;
         
         // Initialize security
         this.security = new SecurityManager();
+        this.license = new LicenseManager();
         this.initializeSecurity();
         
         this.initializeUI();
@@ -102,6 +106,41 @@ class ESPWebFlasher {
         
         const url = card.dataset.url;
         const name = card.querySelector('h3').textContent;
+        const firmwareId = parseInt(card.dataset.id);
+        
+        // License check for firmware 1
+        if (firmwareId === 1) {
+            if (!this.licenseKey) {
+                const key = prompt('🔑 Firmware 1 requires a license key.\nPlease enter your license key:');
+                if (!key) {
+                    this.log('❌ License key required for Firmware 1', 'error');
+                    card.classList.remove('selected');
+                    return;
+                }
+                
+                // Validate license key
+                if (!this.deviceMAC) {
+                    this.log('❌ Device must be connected first to validate license', 'error');
+                    card.classList.remove('selected');
+                    return;
+                }
+                
+                const validation = this.license.validateKey(key, this.deviceMAC);
+                if (!validation.valid) {
+                    this.log(`❌ License validation failed: ${validation.message}`, 'error');
+                    card.classList.remove('selected');
+                    return;
+                }
+                
+                // Store validated key
+                this.licenseKey = key;
+                if (validation.firstUse) {
+                    this.log(`✅ License key activated and bound to this device`, 'success');
+                } else {
+                    this.log(`✅ License key validated`, 'success');
+                }
+            }
+        }
         
         this.log(`📥 Loading ${name}...`, 'info');
         
@@ -199,6 +238,14 @@ class ESPWebFlasher {
             
             // Get chip info
             this.log(`✅ Connected to ${this.chip}!`, 'success');
+            
+            // Read MAC address for license binding
+            try {
+                this.deviceMAC = await this.esploader.readMac();
+                this.log(`📟 Device MAC: ${this.deviceMAC}`, 'info');
+            } catch (e) {
+                this.log('⚠️ Could not read MAC address', 'warning');
+            }
             
             // Update UI
             statusBadge.textContent = 'Connected';
