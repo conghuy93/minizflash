@@ -425,12 +425,21 @@ class ESPWebFlasher {
             // Reset device (try multiple methods depending on available API)
             this.log('🔄 Resetting device...', 'info');
             try {
+                // Debug info: what reset methods are available
+                console.debug('Reset methods:', {
+                    esploader_hardReset: this.esploader && typeof this.esploader.hardReset,
+                    transport_reset: this.transport && typeof this.transport.reset,
+                    device_setSignals: this.device && typeof this.device.setSignals
+                });
+
                 if (this.esploader && typeof this.esploader.hardReset === 'function') {
+                    this.log('Using esploader.hardReset()', 'info');
                     await this.esploader.hardReset();
                 } else if (this.transport && typeof this.transport.reset === 'function') {
+                    this.log('Using transport.reset()', 'info');
                     await this.transport.reset();
                 } else if (this.device && typeof this.device.setSignals === 'function') {
-                    // Toggle DTR to reset if supported by browser
+                    this.log('Toggling DTR via device.setSignals()', 'info');
                     await this.device.setSignals({ dataTerminalReady: true });
                     await new Promise(r => setTimeout(r, 100));
                     await this.device.setSignals({ dataTerminalReady: false });
