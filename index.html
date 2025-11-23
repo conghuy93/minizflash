@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP Web Flasher - MiniZ Flash</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔥 ESP Web Flasher</h1>
+            <p class="subtitle">Flash ESP32/ESP8266 firmware directly from your browser</p>
+            <a href="https://github.com/conghuy93/minizflash" class="github-link" target="_blank">
+                <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                </svg>
+                GitHub
+            </a>
+        </header>
+
+        <div class="warning-box">
+            <strong>⚠️ Browser Compatibility:</strong> This tool requires Chrome, Edge, or Opera browser with Web Serial API support.
+        </div>
+
+        <div class="card">
+            <h2>📡 Step 1: Connect Device</h2>
+            <div class="connect-section">
+                <button id="connectBtn" class="btn btn-primary">
+                    <span class="btn-icon">🔌</span>
+                    Connect to Device
+                </button>
+                <div id="connectionStatus" class="status-badge disconnected">Not Connected</div>
+            </div>
+            <div id="deviceInfo" class="device-info hidden"></div>
+        </div>
+
+        <div class="card">
+            <h2>📦 Step 2: Select Firmware</h2>
+            <div class="file-select-section">
+                <input type="file" id="firmwareFile" accept=".bin" class="file-input">
+                <label for="firmwareFile" class="file-label">
+                    <span class="btn-icon">📁</span>
+                    Choose Firmware File (.bin)
+                </label>
+                <div id="fileInfo" class="file-info hidden"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>⚙️ Step 3: Flash Options</h2>
+            <div class="options-grid">
+                <div class="option-group">
+                    <label for="flashOffset">Flash Offset:</label>
+                    <input type="text" id="flashOffset" value="0x0000" class="input-field">
+                </div>
+                <div class="option-group">
+                    <label for="baudRate">Baud Rate:</label>
+                    <select id="baudRate" class="select-field">
+                        <option value="115200">115200</option>
+                        <option value="230400">230400</option>
+                        <option value="460800">460800</option>
+                        <option value="921600" selected>921600</option>
+                    </select>
+                </div>
+                <div class="option-group">
+                    <label for="flashMode">Flash Mode:</label>
+                    <select id="flashMode" class="select-field">
+                        <option value="dio" selected>DIO</option>
+                        <option value="qio">QIO</option>
+                        <option value="dout">DOUT</option>
+                        <option value="qout">QOUT</option>
+                    </select>
+                </div>
+                <div class="option-group">
+                    <label for="flashFreq">Flash Frequency:</label>
+                    <select id="flashFreq" class="select-field">
+                        <option value="40m" selected>40MHz</option>
+                        <option value="26m">26MHz</option>
+                        <option value="20m">20MHz</option>
+                        <option value="80m">80MHz</option>
+                    </select>
+                </div>
+            </div>
+            <div class="checkbox-group">
+                <label>
+                    <input type="checkbox" id="eraseFlash">
+                    <span>Erase flash before writing</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>⚡ Step 4: Flash Firmware</h2>
+            <button id="flashBtn" class="btn btn-success" disabled>
+                <span class="btn-icon">⚡</span>
+                Start Flash
+            </button>
+            
+            <div id="progressSection" class="progress-section hidden">
+                <div class="progress-bar-container">
+                    <div id="progressBar" class="progress-bar"></div>
+                </div>
+                <div class="progress-info">
+                    <span id="progressText">0%</span>
+                    <span id="progressBytes">0 / 0 bytes</span>
+                </div>
+            </div>
+
+            <div id="console" class="console">
+                <div class="console-header">📋 Console Output</div>
+                <div id="consoleOutput" class="console-output">
+                    Waiting for connection...
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>Built with <a href="https://github.com/espressif/esptool-js" target="_blank">esptool-js</a></p>
+            <p>© 2025 MiniZ Flash | <a href="https://github.com/conghuy93/minizflash" target="_blank">GitHub</a></p>
+        </footer>
+    </div>
+
+    <!-- CryptoJS for MD5 hash -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+    <script type="module" src="app.js"></script>
+</body>
+</html>
