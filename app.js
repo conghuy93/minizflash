@@ -13,8 +13,10 @@ class ESPWebFlasher {
         this.firmwareSource = 'github'; // 'github' or 'local'
         this.selectedGithubUrl = null;
         this.selectedFileName = null;
+        this.selectedFirmwareId = null;
         this.deviceMAC = null;
         this.licenseKey = null;
+        this.licenseValidated = false;
         
         // Initialize security
         this.security = new SecurityManager();
@@ -64,6 +66,15 @@ class ESPWebFlasher {
             card.addEventListener('click', () => this.selectGithubFirmware(card));
         });
         
+        // License key input and validation
+        document.getElementById('licenseKeyInput')?.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('validateLicenseBtn').click();
+            }
+        });
+        
+        document.getElementById('validateLicenseBtn')?.addEventListener('click', () => this.validateLicenseUI());
+        
         // Local file input
         document.getElementById('firmwareFile').addEventListener('change', (e) => this.handleFileSelect(e));
         
@@ -108,38 +119,19 @@ class ESPWebFlasher {
         const name = card.querySelector('h3').textContent;
         const firmwareId = parseInt(card.dataset.id);
         
-        // License check for firmware 1
+        // Show/hide license section for firmware 1
+        const licenseSection = document.getElementById('licenseSection');
         if (firmwareId === 1) {
-            if (!this.licenseKey) {
-                const key = prompt('🔑 Firmware 1 requires a license key.\nPlease enter your license key:');
-                if (!key) {
-                    this.log('❌ License key required for Firmware 1', 'error');
-                    card.classList.remove('selected');
-                    return;
-                }
-                
-                // Validate license key
-                if (!this.deviceMAC) {
-                    this.log('❌ Device must be connected first to validate license', 'error');
-                    card.classList.remove('selected');
-                    return;
-                }
-                
-                const validation = this.license.validateKey(key, this.deviceMAC);
-                if (!validation.valid) {
-                    this.log(`❌ License validation failed: ${validation.message}`, 'error');
-                    card.classList.remove('selected');
-                    return;
-                }
-                
-                // Store validated key
-                this.licenseKey = key;
-                if (validation.firstUse) {
-                    this.log(`✅ License key activated and bound to this device`, 'success');
-                } else {
-                    this.log(`✅ License key validated`, 'success');
-                }
+            licenseSection.classList.remove('hidden');
+            // Clear previous license state if selecting firmware 1 again
+            if (this.selectedFileName !== name) {
+                this.licenseKey = null;
+                this.licenseValidated = false;
+                document.getElementById('licenseKeyInput').value = '';
+                document.getElementById('licenseStatus').classList.add('hidden');
             }
+        } else {
+            licenseSection.classList.add('hidden');
         }
         
         this.log(`📥 Loading ${name}...`, 'info');
@@ -168,6 +160,7 @@ class ESPWebFlasher {
             
             this.selectedGithubUrl = url;
             this.selectedFileName = name;
+            this.selectedFirmwareId = firmwareId;
             
             // Display file info
             const fileInfo = document.getElementById('githubFileInfo');
@@ -180,10 +173,8 @@ class ESPWebFlasher {
             
             this.log(`✅ ${name} loaded successfully (${(this.firmwareData.length / 1024 / 1024).toFixed(2)} MB)`, 'success');
             
-            // Enable flash button if device is connected
-            if (this.esploader) {
-                document.getElementById('flashBtn').disabled = false;
-            }
+            // Enable flash button only if all conditions met
+            this.updateFlashButtonState();
             
         } catch (error) {
             this.log(`❌ Failed to download firmware: ${error.message}`, 'error');
@@ -350,6 +341,86 @@ class ESPWebFlasher {
         }
     }
 
+    validateLicenseUI() {
+        const licenseInput = document.getElementById('licenseKeyInput');
+        const keyValue = licenseInput.value.trim().toUpperCase();
+        const statusDiv = document.getElementById('licenseStatus');
+        
+        // Validation checks
+        if (!keyValue) {
+            this.showLicenseStatus('❌ Please enter a license key', 'error');
+            return;
+        }
+        
+        if (!this.deviceMAC) {
+            this.showLicenseStatus('❌ Device must be connected first', 'error');
+            return;
+        }
+        
+        if (!this.selectedFirmwareId || this.selectedFirmwareId !== 1) {
+            this.showLicenseStatus('❌ Please select Firmware 1 first', 'error');
+            return;
+        }
+        
+        // Validate license key format
+        if (!this.license.isValidFormat(keyValue)) {
+            this.showLicenseStatus('❌ Invalid key format (must be: MZxA-xxxx-xxxx-xxxx)', 'error');
+            licenseInput.value = '';
+            return;
+        }
+        
+        // Validate license key
+        const validation = this.license.validateKey(keyValue, this.deviceMAC);
+        
+        if (!validation.valid) {
+            this.showLicenseStatus(`❌ ${validation.message}`, 'error');
+            licenseInput.value = '';
+            this.licenseKey = null;
+            this.licenseValidated = false;
+            return;
+        }
+        
+        // License is valid
+        this.licenseKey = keyValue;
+        this.licenseValidated = true;
+        
+        if (validation.firstUse) {
+            this.showLicenseStatus(`✅ License key activated! Bound to ${this.deviceMAC}`, 'success');
+            this.log(`✅ License key activated and bound to this device (${this.deviceMAC})`, 'success');
+        } else {
+            this.showLicenseStatus(`✅ License key valid! Previous use: ${this.deviceMAC}`, 'success');
+            this.log(`✅ License key validated for ${this.deviceMAC}`, 'success');
+        }
+        
+        this.updateFlashButtonState();
+    }
+
+    showLicenseStatus(message, type) {
+        const statusDiv = document.getElementById('licenseStatus');
+        statusDiv.innerHTML = message;
+        statusDiv.className = `license-status ${type}`;
+        statusDiv.classList.remove('hidden');
+    }
+
+    updateFlashButtonState() {
+        const flashBtn = document.getElementById('flashBtn');
+        
+        // Flash requires: device connected + firmware loaded + device MAC + license valid (if fw1)
+        const canFlash = this.esploader && this.firmwareData && this.deviceMAC;
+        
+        if (!canFlash) {
+            flashBtn.disabled = true;
+            return;
+        }
+        
+        // Additional check for firmware 1
+        if (this.selectedFirmwareId === 1) {
+            flashBtn.disabled = !this.licenseValidated;
+        } else {
+            flashBtn.disabled = false;
+        }
+    }
+
     handleFileSelect(event) {
         const file = event.target.files[0];
         if (!file) return;
@@ -395,6 +466,14 @@ class ESPWebFlasher {
             this.log('❌ Please connect device and select firmware first', 'error');
             return;
         }
+        
+        // License check for firmware 1
+        if (this.selectedFirmwareId === 1) {
+            if (!this.licenseValidated || !this.licenseKey) {
+                this.log('❌ Firmware 1 requires a valid license key. Please validate your key first.', 'error');
+                return;
+            }
+        }
 
         const flashBtn = document.getElementById('flashBtn');
         const progressSection = document.getElementById('progressSection');
@@ -410,7 +489,7 @@ class ESPWebFlasher {
             const flashOffset = parseInt(document.getElementById('flashOffset').value, 16);
             const eraseFlash = document.getElementById('eraseFlash').checked;
             
-            this.log('=' .repeat(50), 'info');
+            this.log('='.repeat(50), 'info');
             this.log(`⚡ Starting flash operation for ${this.selectedFileName || 'firmware.bin'}...`, 'info');
             
             // Erase if needed

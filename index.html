@@ -73,6 +73,20 @@
                         <span class="firmware-size">8.4MB</span>
                     </div>
                 </div>
+                
+                <!-- License Key Input Section -->
+                <div id="licenseSection" class="license-section hidden">
+                    <div class="license-input-box">
+                        <h3>🔑 License Key Required</h3>
+                        <p class="license-desc">Firmware 1 requires a valid license key. Enter your key below and connect a device first.</p>
+                        <div class="license-input-group">
+                            <input type="text" id="licenseKeyInput" class="license-input" placeholder="Enter license key (e.g., MZ1A-K9X4-7P2M-5R8T)" maxlength="23">
+                            <button id="validateLicenseBtn" class="btn btn-secondary">✓ Validate Key</button>
+                        </div>
+                        <div id="licenseStatus" class="license-status hidden"></div>
+                    </div>
+                </div>
+                
                 <div id="githubFileInfo" class="file-info hidden"></div>
             </div>
             
@@ -170,6 +184,6 @@
     
     <!-- CryptoJS for MD5 hash -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
-    <script type="module" src="app.js?v=77c8d70"></script>
+    <script type="module" src="app.js?v=v2"></script>
 </body>
 </html>
