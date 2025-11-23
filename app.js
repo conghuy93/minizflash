@@ -94,7 +94,7 @@ class ESPWebFlasher {
             fileInfo.innerHTML = `
                 <strong>✅ ${name}</strong><br>
                 📦 Size: ${(this.firmwareData.length / 1024 / 1024).toFixed(2)} MB<br>
-                🔗 Source: GitHub
+                ✓ Ready to flash
             `;
             fileInfo.classList.remove('hidden');
             
