@@ -422,9 +422,25 @@ class ESPWebFlasher {
             this.log('=' .repeat(50), 'info');
             this.log('🎉 Flash complete! Device is ready.', 'success');
             
-            // Reset device
+            // Reset device (try multiple methods depending on available API)
             this.log('🔄 Resetting device...', 'info');
-            await this.esploader.hardReset();
+            try {
+                if (this.esploader && typeof this.esploader.hardReset === 'function') {
+                    await this.esploader.hardReset();
+                } else if (this.transport && typeof this.transport.reset === 'function') {
+                    await this.transport.reset();
+                } else if (this.device && typeof this.device.setSignals === 'function') {
+                    // Toggle DTR to reset if supported by browser
+                    await this.device.setSignals({ dataTerminalReady: true });
+                    await new Promise(r => setTimeout(r, 100));
+                    await this.device.setSignals({ dataTerminalReady: false });
+                } else {
+                    this.log('⚠️ Automatic reset not supported. Please reset the device manually.', 'warning');
+                }
+            } catch (resetError) {
+                this.log(`⚠️ Reset failed: ${resetError.message}`, 'warning');
+                console.warn('Reset error:', resetError);
+            }
 
         } catch (error) {
             this.log(`❌ Flash failed: ${error.message}`, 'error');
