@@ -100,6 +100,11 @@ class ESPWebFlasher {
             
             this.log(`✅ ${name} loaded successfully (${(this.firmwareData.length / 1024 / 1024).toFixed(2)} MB)`, 'success');
             
+            // Enable flash button if device is connected
+            if (this.esploader) {
+                document.getElementById('flashBtn').disabled = false;
+            }
+            
         } catch (error) {
             this.log(`❌ Failed to download firmware: ${error.message}`, 'error');
             card.classList.remove('selected');
