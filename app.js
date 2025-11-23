@@ -348,23 +348,23 @@ class ESPWebFlasher {
         
         // Validation checks
         if (!keyValue) {
-            this.showLicenseStatus('❌ Please enter a license key', 'error');
-            return;
-        }
-        
-        if (!this.deviceMAC) {
-            this.showLicenseStatus('❌ Device must be connected first', 'error');
+            this.showLicenseStatus('🔴 Please enter a license key', 'error');
             return;
         }
         
         if (!this.selectedFirmwareId || this.selectedFirmwareId !== 1) {
-            this.showLicenseStatus('❌ Please select Firmware 1 first', 'error');
+            this.showLicenseStatus('🔴 Please select Firmware 1 first', 'error');
+            return;
+        }
+        
+        if (!this.deviceMAC) {
+            this.showLicenseStatus('🔴 Device must be connected first to bind license', 'error');
             return;
         }
         
         // Validate license key format
         if (!this.license.isValidFormat(keyValue)) {
-            this.showLicenseStatus('❌ Invalid key format (must be: MZxA-xxxx-xxxx-xxxx)', 'error');
+            this.showLicenseStatus('🔴 Invalid format: Use MZxA-xxxx-xxxx-xxxx', 'error');
             licenseInput.value = '';
             return;
         }
@@ -373,7 +373,7 @@ class ESPWebFlasher {
         const validation = this.license.validateKey(keyValue, this.deviceMAC);
         
         if (!validation.valid) {
-            this.showLicenseStatus(`❌ ${validation.message}`, 'error');
+            this.showLicenseStatus(`🔴 ${validation.message}`, 'error');
             licenseInput.value = '';
             this.licenseKey = null;
             this.licenseValidated = false;
@@ -385,10 +385,10 @@ class ESPWebFlasher {
         this.licenseValidated = true;
         
         if (validation.firstUse) {
-            this.showLicenseStatus(`✅ License key activated! Bound to ${this.deviceMAC}`, 'success');
+            this.showLicenseStatus(`🟢 Key activated! Bound to ${this.deviceMAC}`, 'success');
             this.log(`✅ License key activated and bound to this device (${this.deviceMAC})`, 'success');
         } else {
-            this.showLicenseStatus(`✅ License key valid! Previous use: ${this.deviceMAC}`, 'success');
+            this.showLicenseStatus(`🟢 Key valid! Usage: ${validation.useCount || 1}x`, 'success');
             this.log(`✅ License key validated for ${this.deviceMAC}`, 'success');
         }
         
@@ -400,6 +400,11 @@ class ESPWebFlasher {
         statusDiv.innerHTML = message;
         statusDiv.className = `license-status ${type}`;
         statusDiv.classList.remove('hidden');
+        
+        // Auto-scroll to status
+        setTimeout(() => {
+            statusDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 100);
     }
 
     updateFlashButtonState() {

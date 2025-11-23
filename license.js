@@ -98,12 +98,12 @@ class LicenseManager {
 
         // Check format
         if (!this.isValidFormat(key)) {
-            return { valid: false, message: '❌ Invalid key format' };
+            return { valid: false, message: 'Invalid key format' };
         }
 
         // Check if key exists
         if (!this.isValidKey(key)) {
-            return { valid: false, message: '❌ Key not found or invalid' };
+            return { valid: false, message: 'Key not found or invalid' };
         }
 
         // Check if key is already bound
@@ -114,8 +114,9 @@ class LicenseManager {
             this.bindKeyToMAC(key, macAddress);
             return { 
                 valid: true, 
-                message: '✅ Key activated for this device',
-                firstUse: true
+                message: 'Key activated for this device',
+                firstUse: true,
+                useCount: 1
             };
         }
 
@@ -124,13 +125,14 @@ class LicenseManager {
             this.incrementUseCount(key);
             return { 
                 valid: true, 
-                message: `✅ Key verified (Used ${boundData.useCount + 1} times)`,
-                firstUse: false
+                message: `Key verified (Used ${boundData.useCount + 1} times)`,
+                firstUse: false,
+                useCount: boundData.useCount + 1
             };
         } else {
             return { 
                 valid: false, 
-                message: '❌ Key already bound to another device'
+                message: 'Key already bound to another device'
             };
         }
     }
