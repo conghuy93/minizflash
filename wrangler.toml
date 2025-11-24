@@ -1,9 +1,9 @@
-name = "minizflash-proxy"
+name = "firmware-proxy"
 main = "cloudflare-worker.js"
 compatibility_date = "2024-11-01"
 
-# Account ID - cần thay bằng account ID thật sau khi đăng ký
-# account_id = "YOUR_ACCOUNT_ID"
+# Sử dụng subdomain minizjp.workers.dev
+workers_dev = true
 
 [env.production]
-name = "minizflash-proxy"
+name = "firmware-proxy"
