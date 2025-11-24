@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Encryption</title>
+</head>
+<body>
+    <h1>Test Firmware URL Encryption</h1>
+    <div id="results"></div>
+
+    <script type="module">
+        import SecurityManager from './security.js';
+
+        const results = document.getElementById('results');
+        const security = new SecurityManager();
+
+        results.innerHTML += '<h2>Testing Encryption/Decryption:</h2>';
+
+        try {
+            // Get encrypted firmware DB
+            const encryptedDB = security.getEncryptedFirmwareDB();
+            results.innerHTML += `<p>✅ Encrypted DB created: ${Object.keys(encryptedDB).length} entries</p>`;
+
+            // Test decrypt each firmware
+            for (let i = 1; i <= 5; i++) {
+                const encryptedURL = encryptedDB[i];
+                results.innerHTML += `<p><strong>Firmware ${i}:</strong></p>`;
+                results.innerHTML += `<p style="margin-left: 20px;">Encrypted: ${encryptedURL.substring(0, 50)}...</p>`;
+
+                try {
+                    const decryptedURL = security.decryptURL(encryptedURL);
+                    results.innerHTML += `<p style="margin-left: 20px; color: green;">✅ Decrypted: ${decryptedURL}</p>`;
+
+                    // Test if URL is correct
+                    const expectedURL = `https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware${i}.bin`;
+                    if (decryptedURL === expectedURL) {
+                        results.innerHTML += `<p style="margin-left: 20px; color: green;">✅ URL matches expected!</p>`;
+                    } else {
+                        results.innerHTML += `<p style="margin-left: 20px; color: red;">❌ URL mismatch!</p>`;
+                        results.innerHTML += `<p style="margin-left: 20px;">Expected: ${expectedURL}</p>`;
+                    }
+
+                    // Test fetch
+                    fetch(decryptedURL, { method: 'HEAD' })
+                        .then(response => {
+                            const size = (response.headers.get('content-length') / (1024 * 1024)).toFixed(2);
+                            results.innerHTML += `<p style="margin-left: 20px; color: green;">✅ Fetch successful - ${size}MB</p>`;
+                        })
+                        .catch(error => {
+                            results.innerHTML += `<p style="margin-left: 20px; color: red;">❌ Fetch failed: ${error.message}</p>`;
+                        });
+
+                } catch (error) {
+                    results.innerHTML += `<p style="margin-left: 20px; color: red;">❌ Decryption failed: ${error.message}</p>`;
+                }
+
+                results.innerHTML += '<hr>';
+            }
+
+        } catch (error) {
+            results.innerHTML += `<p style="color: red;">❌ Error: ${error.message}</p>`;
+            console.error(error);
+        }
+    </script>
+</body>
+</html>
