@@ -109,20 +109,31 @@ class SecurityManager {
     
     // Get encrypted firmware URLs
     getEncryptedFirmwareDB() {
-        const urls = [
-            'https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware1.bin',
-            'https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware2.bin',
-            'https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware3.bin',
-            'https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware4.bin',
-            'https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware5.bin'
-        ];
+        try {
+            const urls = [
+                'https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware1.bin',
+                'https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware2.bin',
+                'https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware3.bin',
+                'https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware4.bin',
+                'https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware5.bin'
+            ];
 
-        const encrypted = {};
-        urls.forEach((url, idx) => {
-            encrypted[idx + 1] = this.encryptURL(url);
-        });
+            const encrypted = {};
+            urls.forEach((url, idx) => {
+                try {
+                    encrypted[idx + 1] = this.encryptURL(url);
+                } catch (e) {
+                    console.error(`Failed to encrypt URL ${idx + 1}:`, e);
+                    throw e;
+                }
+            });
 
-        return encrypted;
+            console.log('🔐 Encrypted firmware DB created:', Object.keys(encrypted).length, 'entries');
+            return encrypted;
+        } catch (error) {
+            console.error('❌ Failed to create encrypted DB:', error);
+            throw error;
+        }
     }
     
     // Anti-debugging setup

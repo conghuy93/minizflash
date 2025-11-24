@@ -62,8 +62,17 @@ class ESPWebFlasher {
         
         // GitHub firmware cards
         const firmwareCards = document.querySelectorAll('.firmware-card');
+        console.log('🎯 Found firmware cards:', firmwareCards.length);
         firmwareCards.forEach(card => {
-            card.addEventListener('click', () => this.selectGithubFirmware(card));
+            card.addEventListener('click', () => {
+                console.log('🖱️ Firmware card clicked:', card.dataset.id);
+                try {
+                    this.selectGithubFirmware(card);
+                } catch (error) {
+                    console.error('❌ Error selecting firmware:', error);
+                    this.log('❌ Error selecting firmware: ' + error.message, 'error');
+                }
+            });
         });
         
         // License key input and validation
@@ -119,16 +128,34 @@ class ESPWebFlasher {
         const firmwareId = parseInt(card.dataset.id);
         
         // Get encrypted firmware database and decrypt URL
-        const encryptedDB = this.security.getEncryptedFirmwareDB();
-        const encryptedURL = encryptedDB[firmwareId];
-        
-        if (!encryptedURL) {
-            this.log('❌ Invalid firmware selection', 'error');
-            return;
+        let url;
+        try {
+            const encryptedDB = this.security.getEncryptedFirmwareDB();
+            const encryptedURL = encryptedDB[firmwareId];
+            
+            if (!encryptedURL) {
+                throw new Error('Encrypted URL not found');
+            }
+            
+            // Decrypt URL at runtime (never stored in plain text)
+            url = this.security.decryptURL(encryptedURL);
+            console.log('✅ URL decrypted successfully');
+        } catch (error) {
+            // Fallback: Use direct URLs if encryption fails
+            console.warn('⚠️ Encryption failed, using fallback:', error.message);
+            const fallbackURLs = {
+                1: 'https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware1.bin',
+                2: 'https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware2.bin',
+                3: 'https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware3.bin',
+                4: 'https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware4.bin',
+                5: 'https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware5.bin'
+            };
+            url = fallbackURLs[firmwareId];
+            if (!url) {
+                this.log('❌ Invalid firmware selection', 'error');
+                return;
+            }
         }
-        
-        // Decrypt URL at runtime (never stored in plain text)
-        const url = this.security.decryptURL(encryptedURL);
         
         // Show/hide license section for firmware 1
         const licenseSection = document.getElementById('licenseSection');
