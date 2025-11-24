@@ -1,0 +1,39 @@
+# Security rules for firmware distribution
+
+# Deny direct access to .bin files
+<FilesMatch "\.(bin|sha256)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# Prevent directory listing
+Options -Indexes
+
+# Protect sensitive files
+<FilesMatch "^(firmware_download\.log|\.env|\.git)">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# Enable CORS for API proxy
+<IfModule mod_headers.c>
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "POST, OPTIONS"
+    Header set Access-Control-Allow-Headers "Content-Type"
+</IfModule>
+
+# Rate limiting (if mod_security available)
+<IfModule mod_security.c>
+    SecRuleEngine On
+    SecRule REQUEST_URI "/firmware-proxy.php" "id:1,phase:1,t:none,pass,ctl:ruleEngine=On"
+</IfModule>
+
+# Block direct GitHub URL access attempts
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # Block requests trying to access raw GitHub
+    RewriteCond %{HTTP_REFERER} !^https?://(minizjp\.com|localhost) [NC]
+    RewriteCond %{REQUEST_URI} \.(bin|hex|elf)$ [NC]
+    RewriteRule .* - [F,L]
+</IfModule>
