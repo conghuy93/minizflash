@@ -588,6 +588,7 @@ class ESPWebFlasher {
     }
 
     async flashFirmware() {
+        alert(`⚡ FLASH BUTTON CLICKED! Firmware ID: ${this.selectedFirmwareId}`);
         if (!this.esploader || !this.firmwareData) {
             this.log('❌ Please connect device and select firmware first', 'error');
             return;
@@ -595,25 +596,38 @@ class ESPWebFlasher {
         
         // STRICT LICENSE CHECK for firmware 1 - verify EVERYTHING before flash
         if (this.selectedFirmwareId === 1) {
+            alert('🔐 BẮT ĐẦU KIỂM TRA LICENSE VÀ MAC - CODE MỚI ĐANG CHẠY!');
+            console.log('=== FIRMWARE 1 LICENSE VERIFICATION START ===');
+            console.log('selectedFirmwareId:', this.selectedFirmwareId);
+            console.log('licenseKey:', this.licenseKey);
+            console.log('deviceMAC:', this.deviceMAC);
+            console.log('licenseValidated flag:', this.licenseValidated);
+            
             this.log('🔐 Verifying license before flash...', 'info');
+            this.log('⚠️ Firmware 1 requires strict license verification', 'warning');
             
             // Step 1: Check if license key exists
             if (!this.licenseKey || this.licenseKey.trim() === '') {
+                console.error('VERIFICATION FAILED: No license key');
                 this.log('❌ No license key found. Please enter and validate your license key.', 'error');
                 this.licenseValidated = false;
                 this.updateFlashButtonState();
+                alert('⚠️ Firmware 1 requires a license key. Please validate your key first.');
                 return;
             }
+            console.log('✓ Step 1 passed: License key exists');
             
             // Step 2: Re-read current device MAC address (don't trust cached value)
             let currentMAC = null;
             try {
+                console.log('Reading device MAC address from EFUSE...');
                 this.log('📟 Reading device MAC address...', 'info');
                 
                 // Try EFUSE first
                 try {
                     const word0 = await this.esploader.readReg(0x60007044);
                     const word1 = await this.esploader.readReg(0x60007048);
+                    console.log('EFUSE word0:', word0?.toString(16), 'word1:', word1?.toString(16));
                     
                     if (word0 !== undefined && word1 !== undefined) {
                         const macBytes = [
@@ -625,17 +639,21 @@ class ESPWebFlasher {
                             (word1 >> 8) & 0xFF
                         ];
                         currentMAC = macBytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(':');
+                        console.log('✓ MAC read from EFUSE:', currentMAC);
                         this.log(`✅ Current MAC: ${currentMAC}`, 'success');
                     }
                 } catch (e) {
                     // Fallback to cached MAC if read fails
                     currentMAC = this.deviceMAC;
+                    console.warn('EFUSE read failed, using cached MAC:', currentMAC);
                     this.log(`⚠️ Using cached MAC: ${currentMAC}`, 'warning');
                 }
             } catch (e) {
+                console.error('MAC read error:', e);
                 this.log(`❌ Cannot read device MAC: ${e.message}`, 'error');
                 this.licenseValidated = false;
                 this.updateFlashButtonState();
+                alert('⚠️ Cannot read device MAC address. Please reconnect your device.');
                 return;
             }
             
@@ -647,17 +665,30 @@ class ESPWebFlasher {
             }
             
             // Step 3: Get bound MAC from license key in localStorage
+            console.log('Checking license binding in localStorage...');
+            console.log('License key to check:', this.licenseKey);
             const boundData = this.license.getBoundMAC(this.licenseKey);
+            console.log('Bound data from localStorage:', boundData);
+            
             if (!boundData) {
+                console.error('VERIFICATION FAILED: No binding data found');
                 this.log('❌ License key is not activated. Please validate your key first.', 'error');
                 this.licenseValidated = false;
                 this.licenseKey = null;
                 this.updateFlashButtonState();
+                alert('⚠️ License key is not activated. Please validate your key first.');
                 return;
             }
+            console.log('✓ Step 3 passed: Binding data found');
             
             // Step 4: CRITICAL - Compare current MAC with bound MAC
+            console.log('=== MAC COMPARISON ===');
+            console.log('Current device MAC:', currentMAC);
+            console.log('Bound license MAC:', boundData.mac);
+            console.log('Match:', boundData.mac === currentMAC);
+            
             if (boundData.mac !== currentMAC) {
+                console.error('🚨 SECURITY VIOLATION: MAC MISMATCH!');
                 this.log('🚨 SECURITY VIOLATION DETECTED! 🚨', 'error');
                 this.log(`❌ Current device MAC: ${currentMAC}`, 'error');
                 this.log(`❌ Licensed device MAC: ${boundData.mac}`, 'error');
@@ -669,24 +700,36 @@ class ESPWebFlasher {
                 this.licenseKey = null;
                 this.deviceMAC = currentMAC; // Update to correct MAC
                 this.updateFlashButtonState();
+                alert(`🚨 SECURITY ERROR!\n\nThis license key is bound to device:\n${boundData.mac}\n\nCurrent device:\n${currentMAC}\n\nYou cannot use this key on this device!`);
                 return;
             }
+            console.log('✓ Step 4 passed: MAC addresses match');
             
             // Step 5: Re-validate key format and existence
+            console.log('Final validation of key...');
             const validation = this.license.validateKey(this.licenseKey, currentMAC);
+            console.log('Validation result:', validation);
+            
             if (!validation.valid) {
+                console.error('VERIFICATION FAILED: Key validation failed');
                 this.log(`❌ License validation failed: ${validation.message}`, 'error');
                 this.licenseValidated = false;
                 this.licenseKey = null;
                 this.updateFlashButtonState();
+                alert(`⚠️ License validation failed:\n${validation.message}`);
                 return;
             }
+            console.log('✓ Step 5 passed: Key validated');
             
             // All checks passed
+            console.log('=== ALL VERIFICATION CHECKS PASSED ===');
             this.log('✅ License verified successfully!', 'success');
             this.log(`✅ Key: ${this.licenseKey}`, 'success');
             this.log(`✅ Device MAC: ${currentMAC}`, 'success');
             this.log(`✅ Usage count: ${validation.useCount}`, 'success');
+            console.log('Proceeding with flash...');
+        } else {
+            console.log('Firmware', this.selectedFirmwareId, 'does not require license verification');
         }
 
         const flashBtn = document.getElementById('flashBtn');
