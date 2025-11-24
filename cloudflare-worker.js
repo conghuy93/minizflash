@@ -82,10 +82,10 @@ async function handleRequest(request) {
     const body = await request.json();
     const { firmwareId, licenseKey, deviceMAC } = body;
 
-    // Validate inputs
-    if (!firmwareId || !deviceMAC) {
+    // Validate inputs (deviceMAC can be temporary for preview)
+    if (!firmwareId) {
       return new Response(JSON.stringify({ 
-        error: 'Missing required parameters' 
+        error: 'Missing firmware ID' 
       }), { 
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }

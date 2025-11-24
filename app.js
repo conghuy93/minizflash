@@ -148,7 +148,7 @@ class ESPWebFlasher {
                 body: JSON.stringify({
                     firmwareId: firmwareId,
                     licenseKey: firmwareId === 1 ? this.licenseKey : null,
-                    deviceMAC: this.deviceMAC
+                    deviceMAC: this.deviceMAC || 'temp-preview-' + Date.now()
                 })
             });
             
