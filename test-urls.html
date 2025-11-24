@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>URL Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1e1e1e; color: #d4d4d4; }
+        h1 { color: #4ec9b0; }
+        .success { color: #4ec9b0; }
+        .error { color: #f48771; }
+        .info { color: #dcdcaa; }
+        pre { background: #252526; padding: 10px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Firmware URL Verification</h1>
+    <div id="output"></div>
+
+    <script type="module">
+        const output = document.getElementById('output');
+        
+        function log(msg, type = 'info') {
+            const p = document.createElement('p');
+            p.className = type;
+            p.textContent = msg;
+            output.appendChild(p);
+        }
+
+        async function testURLs() {
+            log('🧪 Starting URL tests...', 'info');
+            
+            const urls = [
+                'https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware1.bin',
+                'https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware2.bin',
+                'https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware3.bin',
+                'https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware4.bin',
+                'https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware5.bin'
+            ];
+
+            for (let i = 0; i < urls.length; i++) {
+                const url = urls[i];
+                log(`\n📍 Testing firmware${i + 1}.bin...`, 'info');
+                log(`   URL: ${url}`, 'info');
+                
+                try {
+                    const response = await fetch(url, { method: 'HEAD' });
+                    if (response.ok) {
+                        const size = (response.headers.get('content-length') / (1024 * 1024)).toFixed(2);
+                        log(`   ✅ Status: ${response.status} - Size: ${size}MB`, 'success');
+                    } else {
+                        log(`   ❌ Status: ${response.status}`, 'error');
+                    }
+                } catch (error) {
+                    log(`   ❌ Fetch failed: ${error.message}`, 'error');
+                }
+            }
+
+            log('\n✅ All URL tests completed!', 'success');
+        }
+
+        testURLs();
+    </script>
+</body>
+</html>
