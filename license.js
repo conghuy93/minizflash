@@ -93,7 +93,7 @@ class LicenseManager {
     }
 
     // Validate key for device
-    async validateKey(key, macAddress) {
+    validateKey(key, macAddress) {
         key = key.toUpperCase().trim();
 
         // Check format
