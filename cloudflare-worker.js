@@ -9,11 +9,11 @@
 
 // Firmware URLs - CHỈ TỒN TẠI TRÊN SERVER
 const FIRMWARE_URLS = {
-  1: 'https://raw.githubusercontent.com/conghuy93/minizflash/main/web/firmware1.bin',
-  2: 'https://raw.githubusercontent.com/conghuy93/minizflash/main/web/firmware2.bin',
-  3: 'https://raw.githubusercontent.com/conghuy93/minizflash/main/web/firmware3.bin',
-  4: 'https://raw.githubusercontent.com/conghuy93/minizflash/main/web/firmware4.bin',
-  5: 'https://raw.githubusercontent.com/conghuy93/minizflash/main/web/firmware5.bin'
+  1: 'https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware1.bin',
+  2: 'https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware2.bin',
+  3: 'https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware3.bin',
+  4: 'https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware4.bin',
+  5: 'https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware5.bin'
 };
 
 // Valid license keys - 100 pre-generated keys
