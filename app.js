@@ -296,16 +296,52 @@ class ESPWebFlasher {
                     }
                 }
                 
+                // Detect new MAC address
+                const previousMAC = this.deviceMAC;
+                let newMAC = null;
+                
                 if (mac && this.isValidMAC(mac)) {
-                    this.deviceMAC = mac;
-                    this.log(`🔐 Device MAC verified: ${this.deviceMAC}`, 'success');
+                    newMAC = mac;
+                    this.log(`🔐 Device MAC verified: ${newMAC}`, 'success');
                 } else {
-                    this.deviceMAC = this.generateSessionMAC();
-                    this.log(`📟 Session MAC (device not readable): ${this.deviceMAC}`, 'warning');
+                    newMAC = this.generateSessionMAC();
+                    this.log(`📟 Session MAC (device not readable): ${newMAC}`, 'warning');
                 }
+                
+                // SECURITY: Check if this is a different device
+                if (previousMAC && previousMAC !== newMAC) {
+                    this.log(`⚠️ Different device detected! Previous MAC: ${previousMAC}, New MAC: ${newMAC}`, 'warning');
+                    this.log(`🔒 Clearing license validation for security...`, 'info');
+                    
+                    // Reset license state
+                    this.licenseKey = null;
+                    this.licenseValidated = false;
+                    
+                    // Clear UI
+                    const licenseInput = document.getElementById('licenseKeyInput');
+                    if (licenseInput) {
+                        licenseInput.value = '';
+                    }
+                    const licenseStatus = document.getElementById('licenseStatus');
+                    if (licenseStatus) {
+                        licenseStatus.classList.add('hidden');
+                    }
+                }
+                
+                this.deviceMAC = newMAC;
             } catch (e) {
                 this.log(`⚠️ MAC detection failed: ${e.message}`, 'warning');
-                this.deviceMAC = this.generateSessionMAC();
+                
+                const previousMAC = this.deviceMAC;
+                const newMAC = this.generateSessionMAC();
+                
+                // Reset license if different device
+                if (previousMAC && previousMAC !== newMAC) {
+                    this.licenseKey = null;
+                    this.licenseValidated = false;
+                }
+                
+                this.deviceMAC = newMAC;
             }
             
             // Update UI
@@ -344,6 +380,11 @@ class ESPWebFlasher {
             this.chip = null;
             this.esploader = null;
             
+            // Reset license state to prevent security hole
+            this.deviceMAC = null;
+            this.licenseKey = null;
+            this.licenseValidated = false;
+            
             const statusBadge = document.getElementById('connectionStatus');
             statusBadge.textContent = 'Not Connected';
             statusBadge.classList.remove('connected');
@@ -355,6 +396,16 @@ class ESPWebFlasher {
             
             document.getElementById('deviceInfo').classList.add('hidden');
             document.getElementById('flashBtn').disabled = true;
+            
+            // Hide and reset license status
+            const licenseStatus = document.getElementById('licenseStatus');
+            if (licenseStatus) {
+                licenseStatus.classList.add('hidden');
+            }
+            const licenseInput = document.getElementById('licenseKeyInput');
+            if (licenseInput) {
+                licenseInput.value = '';
+            }
             
             this.log('🔌 Disconnected', 'info');
         } catch (error) {
@@ -546,6 +597,24 @@ class ESPWebFlasher {
         if (this.selectedFirmwareId === 1) {
             if (!this.licenseValidated || !this.licenseKey) {
                 this.log('❌ Firmware 1 requires a valid license key. Please validate your key first.', 'error');
+                return;
+            }
+            
+            // SECURITY: Verify MAC address matches the bound license key
+            const boundData = this.license.getBoundMAC(this.licenseKey);
+            if (!boundData) {
+                this.log('❌ License key binding data not found. Please re-validate your key.', 'error');
+                this.licenseValidated = false;
+                this.updateFlashButtonState();
+                return;
+            }
+            
+            if (boundData.mac !== this.deviceMAC) {
+                this.log(`❌ Security Error: Current device MAC (${this.deviceMAC}) does not match licensed MAC (${boundData.mac})`, 'error');
+                this.log('❌ This license key is bound to a different device. Please use the correct device or get a new key.', 'error');
+                this.licenseValidated = false;
+                this.licenseKey = null;
+                this.updateFlashButtonState();
                 return;
             }
         }
