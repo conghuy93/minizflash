@@ -18,9 +18,6 @@ class ESPWebFlasher {
         this.licenseKey = null;
         this.licenseValidated = false;
         
-        // Obfuscated firmware URLs - XOR encrypted to hide GitHub links
-        this.firmwareMap = this.initFirmwareMap();
-        
         // Initialize security
         this.security = new SecurityManager();
         this.license = new LicenseManager();
@@ -28,45 +25,6 @@ class ESPWebFlasher {
         
         this.initializeUI();
         this.checkWebSerialSupport();
-    }
-
-    // Initialize firmware map with encrypted URLs
-    initFirmwareMap() {
-        const urls = {
-            'fw1': 'https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware1.bin',
-            'fw2': 'https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware2.bin',
-            'fw3': 'https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware3.bin',
-            'fw4': 'https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware4.bin',
-            'fw5': 'https://raw.githubusercontent.com/conghuy93/minizflash/main/firmware5.bin'
-        };
-        
-        const map = {};
-        for (const [id, url] of Object.entries(urls)) {
-            map[id] = this.encryptURL(url);
-        }
-        return map;
-    }
-    
-    // XOR encryption for URL obfuscation
-    encryptURL(url) {
-        const key = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-        const encrypted = btoa(url.split('').map((char, i) => 
-            String.fromCharCode(char.charCodeAt(0) ^ key.charCodeAt(i % key.length))
-        ).join(''));
-        return { encrypted, key };
-    }
-    
-    // Decrypt URL
-    decryptURL(encrypted, key) {
-        try {
-            const decoded = atob(encrypted);
-            return decoded.split('').map((char, i) => 
-                String.fromCharCode(char.charCodeAt(0) ^ key.charCodeAt(i % key.length))
-            ).join('');
-        } catch (e) {
-            console.error('Decryption failed:', e);
-            return null;
-        }
     }
 
     initializeSecurity() {
@@ -157,21 +115,20 @@ class ESPWebFlasher {
         // Mark as selected
         card.classList.add('selected');
         
-        const fwId = card.dataset.fwId;
         const name = card.querySelector('h3').textContent;
         const firmwareId = parseInt(card.dataset.id);
         
-        // Decrypt firmware URL
-        const fwData = this.firmwareMap[fwId];
-        if (!fwData) {
-            this.log('❌ Invalid firmware ID', 'error');
+        // Get encrypted firmware database and decrypt URL
+        const encryptedDB = this.security.getEncryptedFirmwareDB();
+        const encryptedURL = encryptedDB[firmwareId];
+        
+        if (!encryptedURL) {
+            this.log('❌ Invalid firmware selection', 'error');
             return;
         }
-        const url = this.decryptURL(fwData.encrypted, fwData.key);
-        if (!url) {
-            this.log('❌ Failed to decrypt firmware URL', 'error');
-            return;
-        }
+        
+        // Decrypt URL at runtime (never stored in plain text)
+        const url = this.security.decryptURL(encryptedURL);
         
         // Show/hide license section for firmware 1
         const licenseSection = document.getElementById('licenseSection');
@@ -191,41 +148,24 @@ class ESPWebFlasher {
         this.log(`📥 Loading ${name}...`, 'info');
         
         try {
-            // GitHub Pages doesn't support PHP proxy, use direct download
-            // For production with PHP server, enable proxy
-            const useProxy = false; // Set to true when deployed on PHP server
+            // Add random delay to obfuscate timing
+            await new Promise(resolve => setTimeout(resolve, Math.random() * 300 + 100));
             
-            let arrayBuffer;
-            if (useProxy) {
-                // Download via proxy - GitHub URL never exposed to client network
-                console.log('🔒 Using secure proxy for firmware download');
-                const proxyResponse = await fetch('/firmware-proxy.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        firmwareId: firmwareId,
-                        licenseKey: firmwareId === 1 ? this.licenseKey : null,
-                        deviceMAC: this.deviceMAC
-                    })
-                });
-                
-                if (!proxyResponse.ok) {
-                    const error = await proxyResponse.json();
-                    throw new Error(error.error || 'Proxy download failed');
+            // Use decrypted URL for fetch (not logged to console in production)
+            const response = await fetch(url, {
+                method: 'GET',
+                cache: 'no-store',
+                headers: {
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache'
                 }
-                
-                arrayBuffer = await proxyResponse.arrayBuffer();
-            } else {
-                // Direct download (GitHub Pages compatible)
-                console.log('📥 Direct download from GitHub');
-                const response = await fetch(url);
-                if (!response.ok) {
-                    this.security.recordAttempt();
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                arrayBuffer = await response.arrayBuffer();
+            });
+            if (!response.ok) {
+                this.security.recordAttempt();
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
             
+            const arrayBuffer = await response.arrayBuffer();
             this.firmwareData = new Uint8Array(arrayBuffer);
             
             // Verify firmware integrity
@@ -667,7 +607,6 @@ class ESPWebFlasher {
     }
 
     async flashFirmware() {
-        alert(`⚡ FLASH BUTTON CLICKED! Firmware ID: ${this.selectedFirmwareId}`);
         if (!this.esploader || !this.firmwareData) {
             this.log('❌ Please connect device and select firmware first', 'error');
             return;
@@ -675,7 +614,6 @@ class ESPWebFlasher {
         
         // STRICT LICENSE CHECK for firmware 1 - verify EVERYTHING before flash
         if (this.selectedFirmwareId === 1) {
-            alert('🔐 BẮT ĐẦU KIỂM TRA LICENSE VÀ MAC - CODE MỚI ĐANG CHẠY!');
             console.log('=== FIRMWARE 1 LICENSE VERIFICATION START ===');
             console.log('selectedFirmwareId:', this.selectedFirmwareId);
             console.log('licenseKey:', this.licenseKey);
