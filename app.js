@@ -235,51 +235,76 @@ class ESPWebFlasher {
                 // Try different methods to get MAC address
                 let mac = null;
                 
-                // Method 1: Try readMac if available
-                if (this.esploader.readMac) {
-                    try {
-                        mac = await this.esploader.readMac();
-                    } catch (e) {
-                        this.log('⚠️ readMac method failed, trying alternative...', 'info');
+                // Method 1: Read MAC from EFUSE per Espressif API docs
+                // EFUSE_RD_MAC_SPI_SYS registers hold the MAC address
+                try {
+                    // ESP32-S3 EFUSE address: 0x60007000 is EFUSE base
+                    // MAC address is at offset 0x044 (word0) and 0x048 (word1)
+                    const word0 = await this.esploader.readReg(0x60007044);
+                    const word1 = await this.esploader.readReg(0x60007048);
+                    
+                    if (word0 !== undefined && word1 !== undefined) {
+                        const macBytes = [
+                            (word0 >> 0) & 0xFF,
+                            (word0 >> 8) & 0xFF,
+                            (word0 >> 16) & 0xFF,
+                            (word0 >> 24) & 0xFF,
+                            (word1 >> 0) & 0xFF,
+                            (word1 >> 8) & 0xFF
+                        ];
+                        mac = macBytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(':');
+                        this.log(`✅ MAC from EFUSE: ${mac}`, 'success');
                     }
+                } catch (e) {
+                    this.log('⚠️ EFUSE read (method 1) failed', 'info');
                 }
                 
-                // Method 2: Read from eFuse (0x39, 6 bytes for MAC)
+                // Method 2: Try alternative EFUSE address
                 if (!mac) {
                     try {
-                        const macBytes = await this.esploader.readReg(0x3f41a048, 2); // ESP32-S3 MAC address eFuse location
-                        if (macBytes) {
-                            mac = this.bytesToMAC(macBytes);
+                        const word0 = await this.esploader.readReg(0x3f41a048);
+                        const word1 = await this.esploader.readReg(0x3f41a04c);
+                        
+                        if (word0 && word1) {
+                            const macBytes = [
+                                (word0 >> 0) & 0xFF,
+                                (word0 >> 8) & 0xFF,
+                                (word0 >> 16) & 0xFF,
+                                (word0 >> 24) & 0xFF,
+                                (word1 >> 0) & 0xFF,
+                                (word1 >> 8) & 0xFF
+                            ];
+                            mac = macBytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(':');
+                            this.log(`✅ MAC from OTP: ${mac}`, 'success');
                         }
                     } catch (e) {
-                        this.log('⚠️ eFuse read failed', 'info');
+                        this.log('⚠️ OTP read (method 2) failed', 'info');
                     }
                 }
                 
-                // Method 3: Try OTP/eFuse block read
+                // Method 3: Generate from Chip ID
                 if (!mac) {
                     try {
-                        // Generate a mock MAC for testing if real MAC not available
                         const chipId = await this.esploader.readReg(0x60000050);
                         const chipId2 = await this.esploader.readReg(0x60000054);
                         if (chipId && chipId2) {
                             mac = this.generateMACFromChipId(chipId, chipId2);
+                            this.log(`📟 MAC (from Chip ID): ${mac}`, 'info');
                         }
                     } catch (e) {
-                        this.log('⚠️ Could not read chip ID', 'info');
+                        this.log('⚠️ Chip ID read failed', 'info');
                     }
                 }
                 
-                if (mac) {
+                if (mac && this.isValidMAC(mac)) {
                     this.deviceMAC = mac;
-                    this.log(`📟 Device MAC: ${this.deviceMAC}`, 'success');
+                    this.log(`🔐 Device MAC verified: ${this.deviceMAC}`, 'success');
                 } else {
-                    // Generate a deterministic MAC for this session if all else fails
                     this.deviceMAC = this.generateSessionMAC();
-                    this.log(`📟 Device MAC (session): ${this.deviceMAC} - License will be bound to this session`, 'warning');
+                    this.log(`📟 Session MAC (device not readable): ${this.deviceMAC}`, 'warning');
                 }
             } catch (e) {
-                this.log('⚠️ MAC address detection failed, using session MAC', 'warning');
+                this.log(`⚠️ MAC detection failed: ${e.message}`, 'warning');
                 this.deviceMAC = this.generateSessionMAC();
             }
             
@@ -704,6 +729,14 @@ class ESPWebFlasher {
         } catch (e) {
             return null;
         }
+    }
+
+    // Validate MAC address format
+    isValidMAC(mac) {
+        if (!mac || typeof mac !== 'string') return false;
+        // MAC format: XX:XX:XX:XX:XX:XX
+        const macRegex = /^([0-9A-F]{2}:){5}([0-9A-F]{2})$/i;
+        return macRegex.test(mac);
     }
 
     // Generate MAC from chip ID (deterministic)
